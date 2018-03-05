@@ -20,6 +20,10 @@ library
                      , Exchange.Binance
   build-depends:       base >= 4.7 && < 5
                      , aeson
+                     , Chart
+                     , Chart-diagrams
+                     , diagrams-canvas
+                     , diagrams-lib
                      , http-client
                      , http-client-tls
                      , QuickCheck
