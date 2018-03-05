@@ -10,7 +10,9 @@ import           Network.HTTP.Client.TLS
 import           Servant.API
 import           Servant.Client
 import           Universum
+import Text.Read (read)
 
+import MACD
 import qualified Data.Text               as T
 
 type BinanceAPI =
@@ -42,17 +44,22 @@ getTrades :: Maybe Symbol -> Maybe Limit -> ClientM [Trade]
 getHistoricalTrades :: Maybe Symbol -> Maybe Limit -> Maybe FromID -> ClientM [Trade]
 getTrades :<|> getHistoricalTrades = client binanceAPI
 
-testClient :: ClientM () -> IO ()
-testClient action = do
-  -- manager <- newManager defaultManagerSettings
-  manager <- newTlsManager
-  url <- parseBaseUrl "https://api.binance.com/api/v1"
+testClient :: String -> ClientM () -> IO ()
+testClient url' action = do
+  url@(BaseUrl t _ _ _) <- parseBaseUrl url'
   print url
+  manager <- case t of
+    Http -> newManager defaultManagerSettings
+    Https -> newTlsManager
   let env = ClientEnv manager url
   print =<< runClientM action env
 
-uselessNumbers :: ClientM ()
-uselessNumbers = do
-  trades <- getTrades (Just "ETHBTC") (Just 100)
-  putTextLn $ show trades
+runBinance = testClient "https://api.binance.com/api/v1"
 
+getPrices :: ClientM [Double]
+getPrices = do
+  trades <- getTrades (Just "ETHBTC") (Just 100)
+  return $ fmap (read . toString . price) trades
+  -- putTextLn $ show trades
+
+testPrices = getPrices >>= computeRSI 10 >>= print

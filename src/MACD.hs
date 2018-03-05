@@ -34,10 +34,10 @@ data MACD = MACD
   , macdHist :: Value
   } deriving (Eq, Show)
 
-computeMACD :: MACDConf -> Price -> IO MACD
+computeMACD :: (MonadThrow m, MonadIO m) => MACDConf -> Price -> m MACD
 computeMACD MACDConf{..} prices = do
     let inReal = fromList $ map CDouble prices
-    retE <- ta_macd inReal fastPeriod slowPeriod signalPeriod
+    retE <- liftIO $ ta_macd inReal fastPeriod slowPeriod signalPeriod
     case retE of
       Left err -> taException "MACD" err
       Right (_, _, macd, macdSignal, macdHist) ->
@@ -46,12 +46,12 @@ computeMACD MACDConf{..} prices = do
 
 -- | rsi 指标
 newtype TimePeriod = TimePeriod Int
-  deriving (Eq, Show)
+  deriving (Eq, Show, Num)
 
-computeRSI :: TimePeriod -> Price -> IO Value
+computeRSI :: (MonadThrow m, MonadIO m) => TimePeriod -> Price -> m Value
 computeRSI (TimePeriod t) prices = do
     let inReal = fromList $ fmap CDouble prices
-    retE <- ta_rsi inReal t
+    retE <- liftIO $ ta_rsi inReal t
     case retE of
       Left err -> taException "RSI" err
       Right (_, _, vs) -> return vs
