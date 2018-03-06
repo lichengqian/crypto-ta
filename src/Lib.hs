@@ -10,8 +10,10 @@ module Lib
 
 -- import           Data.Aeson
 -- import           Data.Aeson.TH
+import Diagrams.Backend.CmdLine hiding (width, height)
+import           Diagrams.Backend.Canvas
 import           Diagrams.Backend.Canvas.CmdLine
-import           Diagrams.Prelude
+import           Diagrams.Prelude hiding (width, height)
 import           Network.Wai
 import           Network.Wai.Handler.Warp
 import           Servant
@@ -23,6 +25,8 @@ import Data.Time.LocalTime
 import Prices(prices,mkDate,filterPrices)
 
 import Exchange.Binance
+import Graphics.Blank (blankCanvas, send, clearRect, width, height)
+import Control.Concurrent
 
 prices' :: [(LocalTime,Double,Double)]
 prices' = filterPrices prices (mkDate 1 1 2006) (mkDate 31 12 2006)
@@ -47,13 +51,40 @@ priceChart sym = do
     plotLeft (line "price 1" [[ (d,v) | (d,v) <- prices']])
     plotRight (line "price 2" [[ (d,v + 1) | (d,v) <- prices']])
 
+{-
+main = mainWith $ \sym -> do
+  env <- defaultEnv vectorAlignmentFns 700 400
+  chart <- priceChart $ fromString sym
+  let (diagram :: Diagram B, _) = runBackendR env chart
+  return diagram
+-}
 
 main = do
-  env <- defaultEnv vectorAlignmentFns 700 400
-  chart <- priceChart "ETHBTC"
-  let (diagram :: Diagram B, _) = runBackendR env chart
-  mainWith diagram
- 
+  env <- binanceEnv
+  backendEnv <- defaultEnv vectorAlignmentFns 700 400
+  -- opts <- mainArgs Canvas
+  let opts = CanvasOptions $ mkSizeSpec2D (Just 700) (Just 400)
+  let sym = "ETHBTC"
+  let loop context = do
+        prices' <- evalClientM env $ getPrices sym 500
+        let chart = toRenderable $ do
+                layoutlr_title .= toString sym
+                layoutlr_left_axis . laxis_override .= axisGridHide
+                layoutlr_right_axis . laxis_override .= axisGridHide
+                plotLeft (line "price 1" [[ (d,v) | (d,v) <- prices']])
+                plotRight (line "price 2" [[ (d,v + 1) | (d,v) <- prices']])
+
+        let (diagram :: Diagram B, _) = runBackendR backendEnv chart
+        -- opts <- mainArgs diagram
+        send context $ do
+            clearRect (0,0,width context,height context)
+            renderDia Canvas opts diagram
+
+        threadDelay (2 * 1000)
+        loop context
+
+  blankCanvas 3000 loop
+
 -- b1 = (square 20 :: Diagram B) # lw 0.002
 
 -- main = mainWith (pad 1.1 b1)

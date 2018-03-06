@@ -25,7 +25,7 @@ int2LocalTime n = utcToLocalTime <$> getTimeZone utcTime <*> pure utcTime
     utcTime = posixSecondsToUTCTime . fromIntegral $ div n 1000
  
 type BinanceAPI =
-       "trades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> Get '[JSON] [Trade]
+       "aggTrades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> Get '[JSON] [Trade]
   :<|> "historicalTrades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> QueryParam "fromId" Int :> Get '[JSON] [Trade]
 
 type Symbol = Text
@@ -41,10 +41,10 @@ data Trade = Trade
 
 instance FromJSON Trade where
   parseJSON (Object o) =
-    Trade <$> o .: "id"
-          <*> o .: "price"
-          <*> o .: "qty"
-          <*> o .: "time"
+    Trade <$> o .: "a"
+          <*> o .: "p"
+          <*> o .: "q"
+          <*> o .: "T"
 
   parseJSON _ = mzero
 
