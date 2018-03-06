@@ -1,10 +1,13 @@
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Exchange.Binance where
 
 import           Data.Aeson
 import           Data.Proxy
+import           Data.Time
+import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
 import           Network.HTTP.Client.TLS
 import           Servant.API
@@ -15,6 +18,12 @@ import Text.Read (read)
 import MACD
 import qualified Data.Text               as T
 
+-- | convert int to LocalTime, for binance
+int2LocalTime :: Integer -> IO LocalTime
+int2LocalTime n = utcToLocalTime <$> getTimeZone utcTime <*> pure utcTime
+  where
+    utcTime = posixSecondsToUTCTime . fromIntegral $ div n 1000
+ 
 type BinanceAPI =
        "trades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> Get '[JSON] [Trade]
   :<|> "historicalTrades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> QueryParam "fromId" Int :> Get '[JSON] [Trade]
@@ -27,6 +36,7 @@ data Trade = Trade
   { tid   :: Int
   , price :: Text
   , qty   :: Text
+  , time  :: Integer
   } deriving (Eq, Show)
 
 instance FromJSON Trade where
@@ -34,6 +44,7 @@ instance FromJSON Trade where
     Trade <$> o .: "id"
           <*> o .: "price"
           <*> o .: "qty"
+          <*> o .: "time"
 
   parseJSON _ = mzero
 
@@ -44,22 +55,29 @@ getTrades :: Maybe Symbol -> Maybe Limit -> ClientM [Trade]
 getHistoricalTrades :: Maybe Symbol -> Maybe Limit -> Maybe FromID -> ClientM [Trade]
 getTrades :<|> getHistoricalTrades = client binanceAPI
 
-testClient :: String -> ClientM () -> IO ()
-testClient url' action = do
+smartClientEnv :: String -> IO ClientEnv
+smartClientEnv url' = do
   url@(BaseUrl t _ _ _) <- parseBaseUrl url'
   print url
   manager <- case t of
     Http -> newManager defaultManagerSettings
     Https -> newTlsManager
-  let env = ClientEnv manager url
-  print =<< runClientM action env
+  return $ ClientEnv manager url
 
-runBinance = testClient "https://api.binance.com/api/v1"
+evalClientM :: (MonadIO m, MonadThrow m) => ClientEnv -> ClientM a -> m a
+evalClientM env action = liftIO $ do
+  runClientM action env >>= \case
+      Left err -> throwM err
+      Right r  -> return r
 
-getPrices :: ClientM [Double]
-getPrices = do
-  trades <- getTrades (Just "ETHBTC") (Just 100)
-  return $ fmap (read . toString . price) trades
+binanceEnv = smartClientEnv "https://api.binance.com/api/v1"
+
+getPrices :: Symbol -> Limit -> ClientM [(LocalTime, Double)]
+getPrices sym limit = do
+  trades <- getTrades (Just sym) (Just limit)
+  liftIO $ traverse f trades
+  where
+    f Trade{..} = (, read . toString $ price) <$> int2LocalTime time
   -- putTextLn $ show trades
 
-testPrices = getPrices >>= computeRSI 10 >>= print
+testPrices = getPrices "ETHBTC" 100 >>= computeRSI 10 . fmap snd >>= print

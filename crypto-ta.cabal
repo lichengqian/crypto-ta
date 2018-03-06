@@ -42,11 +42,14 @@ library
 
   default-extensions:  DeriveGeneric
                        GeneralizedNewtypeDeriving
+                       LambdaCase
                        NoImplicitPrelude
                        OverloadedLists
                        OverloadedStrings
+                       PartialTypeSignatures
                        RecordWildCards
                        ScopedTypeVariables
+                       TupleSections
 
 executable crypto-ta-exe
   hs-source-dirs:      app

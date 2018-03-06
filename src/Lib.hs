@@ -22,9 +22,12 @@ import Data.Time.LocalTime
 
 import Prices(prices,mkDate,filterPrices)
 
-prices' :: [(LocalTime,Double,Double)]
-prices' = filterPrices prices (mkDate 1 1 2005) (mkDate 31 12 2006)
+import Exchange.Binance
 
+prices' :: [(LocalTime,Double,Double)]
+prices' = filterPrices prices (mkDate 1 1 2006) (mkDate 31 12 2006)
+
+-- | 参考 https://github.com/timbod7/haskell-chart/wiki/example-9
 chart = toRenderable $ do
     layoutlr_title .= "Price History"
     layoutlr_left_axis . laxis_override .= axisGridHide
@@ -33,8 +36,21 @@ chart = toRenderable $ do
     plotLeft (line "price 1.1" [[ (d,v + 2) | (d,v,_) <- prices']])
     plotRight (line "price 2" [[ (d,v) | (d,_,v) <- prices']])
 
+priceChart :: Symbol -> IO _
+priceChart sym = do
+  env <- binanceEnv
+  prices' <- evalClientM env $ getPrices sym 500
+  return $ toRenderable $ do
+    layoutlr_title .= toString sym
+    layoutlr_left_axis . laxis_override .= axisGridHide
+    layoutlr_right_axis . laxis_override .= axisGridHide
+    plotLeft (line "price 1" [[ (d,v) | (d,v) <- prices']])
+    plotRight (line "price 2" [[ (d,v + 1) | (d,v) <- prices']])
+
+
 main = do
   env <- defaultEnv vectorAlignmentFns 700 400
+  chart <- priceChart "ETHBTC"
   let (diagram :: Diagram B, _) = runBackendR env chart
   mainWith diagram
  
