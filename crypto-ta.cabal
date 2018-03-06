@@ -18,6 +18,7 @@ library
   exposed-modules:     Lib
                      , MACD
                      , Exchange.Binance
+                     , Prices
   build-depends:       base >= 4.7 && < 5
                      , aeson
                      , Chart
@@ -32,6 +33,7 @@ library
                      , servant-server
                      , talib
                      , text
+                     , time
                      , universum
                      , vector
                      , wai
@@ -44,6 +46,7 @@ library
                        OverloadedLists
                        OverloadedStrings
                        RecordWildCards
+                       ScopedTypeVariables
 
 executable crypto-ta-exe
   hs-source-dirs:      app
