@@ -14,11 +14,13 @@ data TAException = TAException Text Int
   deriving (Eq, Show)
 
 instance Exception TAException where
-  
+
 taException msg = throwM . TAException msg
 
 type Price = [Double]
 type Value = V.Vector CDouble
+
+toPriceList vs = [p | CDouble p <- V.toList vs]
 
 -- | MACD配置参数
 data MACDConf = MACDConf
@@ -29,9 +31,9 @@ data MACDConf = MACDConf
 
 -- | MACD 指标
 data MACD = MACD
-  { macd :: Value
-  , macdSignal :: Value
-  , macdHist :: Value
+  { macd :: Price
+  , macdSignal :: Price
+  , macdHist :: Price
   } deriving (Eq, Show)
 
 computeMACD :: (MonadThrow m, MonadIO m) => MACDConf -> Price -> m MACD
@@ -41,20 +43,20 @@ computeMACD MACDConf{..} prices = do
     case retE of
       Left err -> taException "MACD" err
       Right (_, _, macd, macdSignal, macdHist) ->
-        pure $ MACD{..}
+        pure $ MACD (toPriceList macd) (toPriceList macdSignal) (toPriceList macdHist)
 
 
 -- | rsi 指标
 newtype TimePeriod = TimePeriod Int
   deriving (Eq, Show, Num)
 
-computeRSI :: (MonadThrow m, MonadIO m) => TimePeriod -> Price -> m Value
+computeRSI :: (MonadThrow m, MonadIO m) => TimePeriod -> Price -> m Price
 computeRSI (TimePeriod t) prices = do
     let inReal = fromList $ fmap CDouble prices
     retE <- liftIO $ ta_rsi inReal t
     case retE of
       Left err -> taException "RSI" err
-      Right (_, _, vs) -> return vs
+      Right (_, _, vs) -> return $ toPriceList vs
 
 
 _test1 a b c = do
