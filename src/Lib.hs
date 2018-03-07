@@ -26,7 +26,7 @@ import Prices(prices,mkDate,filterPrices)
 
 import Exchange.Binance
 import Graphics.Blank (blankCanvas, send, clearRect, width, height)
-import Control.Concurrent
+import Control.Concurrent (threadDelay, forkIO)
 
 prices' :: [(LocalTime,Double,Double)]
 prices' = filterPrices prices (mkDate 1 1 2006) (mkDate 31 12 2006)
@@ -40,17 +40,33 @@ chart = toRenderable $ do
     plotLeft (line "price 1.1" [[ (d,v + 2) | (d,v,_) <- prices']])
     plotRight (line "price 2" [[ (d,v) | (d,_,v) <- prices']])
 
-priceChart :: Symbol -> IO _
-priceChart sym = do
+-- | 工作线程，定时拉取price数据并生成chart
+priceChartWorker :: Symbol -> Int -> IO (MVar _)
+priceChartWorker sym maxSize = do
   env <- binanceEnv
-  prices' <- evalClientM env $ getPrices sym 500
-  return $ toRenderable $ do
-    layoutlr_title .= toString sym
-    layoutlr_left_axis . laxis_override .= axisGridHide
-    layoutlr_right_axis . laxis_override .= axisGridHide
-    plotLeft (line "price 1" [[ (d,v) | (d,v) <- prices']])
-    plotRight (line "price 2" [[ (d,v + 1) | (d,v) <- prices']])
+  mvarChart <- newEmptyMVar
+  let loop prices mbLastIndex = do
+          (mbLastIndex', prices') <- evalClientM env $ getPrices sym 500 mbLastIndex
+          let p = newPrice prices prices'
+          putMVar mvarChart $ toRenderable $ do
+            layoutlr_title .= toString sym
+            layoutlr_left_axis . laxis_override .= axisGridHide
+            layoutlr_right_axis . laxis_override .= axisGridHide
+            plotLeft (line "price 1" [[ (d,v) | (d,v) <- p]])
+            plotRight (line "price 2" [[ (d,v + 1) | (d,v) <- p]])
 
+          threadDelay (2 * 1000)
+          loop p mbLastIndex'
+
+  forkIO $ loop [] Nothing
+  return mvarChart
+
+  where
+    newPrice old new = if n <= maxSize then p else drop (n - maxSize) p
+      where
+        p = old ++ new 
+        n = length p
+  
 {-
 main = mainWith $ \sym -> do
   env <- defaultEnv vectorAlignmentFns 700 400
@@ -60,27 +76,19 @@ main = mainWith $ \sym -> do
 -}
 
 main = do
-  env <- binanceEnv
+  let sym = "ETHBTC"
+  mvarChart <- priceChartWorker sym 5000
   backendEnv <- defaultEnv vectorAlignmentFns 700 400
   -- opts <- mainArgs Canvas
   let opts = CanvasOptions $ mkSizeSpec2D (Just 700) (Just 400)
-  let sym = "ETHBTC"
   let loop context = do
-        prices' <- evalClientM env $ getPrices sym 500
-        let chart = toRenderable $ do
-                layoutlr_title .= toString sym
-                layoutlr_left_axis . laxis_override .= axisGridHide
-                layoutlr_right_axis . laxis_override .= axisGridHide
-                plotLeft (line "price 1" [[ (d,v) | (d,v) <- prices']])
-                plotRight (line "price 2" [[ (d,v + 1) | (d,v) <- prices']])
-
+        chart <- takeMVar mvarChart
         let (diagram :: Diagram B, _) = runBackendR backendEnv chart
         -- opts <- mainArgs diagram
         send context $ do
             clearRect (0,0,width context,height context)
             renderDia Canvas opts diagram
 
-        threadDelay (2 * 1000)
         loop context
 
   blankCanvas 3000 loop
