@@ -8,7 +8,6 @@ import           Data.Aeson
 import           Data.List.NonEmpty (fromList)
 import           Data.Proxy
 import           Data.Time
-import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
 import           Network.HTTP.Client.TLS
 import           Servant.API
@@ -19,12 +18,8 @@ import Text.Read (read)
 import MACD
 import qualified Data.Text               as T
 
--- | convert int to LocalTime, for binance
-int2LocalTime :: Integer -> IO LocalTime
-int2LocalTime n = utcToLocalTime <$> getTimeZone utcTime <*> pure utcTime
-  where
-    utcTime = posixSecondsToUTCTime . fromIntegral $ div n 1000
- 
+import Types
+
 type BinanceAPI =
        "aggTrades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> QueryParam "fromId" FromID :> Get '[JSON] [Trade]
   :<|> "historicalTrades" :> QueryParam "symbol" Symbol :> QueryParam "limit" Int :> QueryParam "fromId" Int :> Get '[JSON] [Trade]
@@ -73,13 +68,14 @@ evalClientM env action = liftIO $ do
 
 binanceEnv = smartClientEnv "https://api.binance.com/api/v1"
 
-getPrices :: Symbol -> Limit -> Maybe FromID -> ClientM (Maybe FromID, [(LocalTime, Double)])
+getPrices :: Symbol -> Limit -> Maybe FromID -> ClientM (Maybe FromID, History Double)
 getPrices sym limit mbFromId = do
   trades <- getTrades (Just sym) (Just limit) mbFromId
   prices <- liftIO $ traverse f trades
-  return (Just . tid . last . fromList $ trades, prices)
+  return (Just . tid . last . fromList $ trades, History prices)
   where
-    f Trade{..} = (, read . toString $ price) <$> int2LocalTime time
+    f Trade{..} = Timed <$> int2LocalTime time <*> pure (read $ toString price)
   -- putTextLn $ show trades
 
-testPrices = getPrices "ETHBTC" 100 Nothing >>= computeRSI 10 . fmap snd . snd >>= print
+testPrices = getPrices "ETHBTC" 100 Nothing
+  >>= computeRSI 10 . snd >>= print

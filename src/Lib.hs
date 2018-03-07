@@ -22,36 +22,13 @@ import Graphics.Rendering.Chart.Easy
 import Graphics.Rendering.Chart.Backend.Diagrams
 import Data.Time.LocalTime
 
-import Prices(prices,mkDate,filterPrices)
-
+import Types
 import Exchange.Binance
 import MACD
 import Graphics.Blank (blankCanvas, send, clearRect, width, height)
 import Control.Concurrent (threadDelay, forkIO)
 
-prices' :: [(LocalTime,Double,Double)]
-prices' = filterPrices prices (mkDate 1 1 2006) (mkDate 31 12 2006)
-
 -- | 参考 https://github.com/timbod7/haskell-chart/wiki/example-9
-chart = toRenderable $ do
-    layoutlr_title .= "Price History"
-    layoutlr_left_axis . laxis_override .= axisGridHide
-    layoutlr_right_axis . laxis_override .= axisGridHide
-    plotLeft (line "price 1" [[ (d,v) | (d,v,_) <- prices']])
-    plotLeft (line "price 1.1" [[ (d,v + 2) | (d,v,_) <- prices']])
-    plotRight (line "price 2" [[ (d,v) | (d,_,v) <- prices']])
-
-samplePrices :: [(LocalTime, a)] -> [(LocalTime, a)]
-samplePrices = go []
-  where
-    go :: [(LocalTime, a)] -> [(LocalTime, a)] -> [(LocalTime, a)]
-
-    go acc [] = reverse acc
-    go [] (e:xs) = go [e] xs
-    go acc@((t, _):_) (e@(t2, _):xs)
-      | t == t2 = go acc xs
-      | otherwise = go (e:acc) xs
-
 -- | 工作线程，定时拉取price数据并生成chart
 priceChartWorker :: Symbol -> Int -> IO (MVar _)
 priceChartWorker sym maxSize = do
@@ -59,30 +36,24 @@ priceChartWorker sym maxSize = do
   mvarChart <- newEmptyMVar
   let loop prices mbLastIndex = do
           (mbLastIndex', prices') <- evalClientM env $ getPrices sym 500 mbLastIndex
-          let p = newPrice prices $ samplePrices prices'
-          MACD{..} <- computeMACD macdCfg $ fmap snd p
-          let macd1 = zipWith (\(t, _) p -> (t, p)) p macd
-              macd2 = zipWith (\(t, _) p -> (t, p)) p macdSignal
+          let p = newPrice prices $ sampleHistory prices'
+          MACD{..} <- computeMACD macdCfg p
           putMVar mvarChart $ toRenderable $ do
             layoutlr_title .= toString sym
             layoutlr_left_axis . laxis_override .= axisGridHide
             layoutlr_right_axis . laxis_override .= axisGridHide
-            plotLeft (line "macd 1" [macd1])
-            plotLeft (line "macd 2" [macd2])
-            plotRight (line "price" [p])
+            plotLeft (line "macd 1" [fromHistory macd])
+            plotLeft (line "macd 2" [fromHistory macdSignal])
+            plotRight (line "price" [fromHistory p])
 
           threadDelay (2 * 1000)
           loop p mbLastIndex'
 
-  forkIO $ loop [] Nothing
+  forkIO $ loop mempty Nothing
   return mvarChart
 
   where
-    newPrice old new = if n <= maxSize then p else drop (n - maxSize) p
-      where
-        p = old ++ new 
-        n = length p
-
+    newPrice old new = limitHistory maxSize $ mappend old new
     macdCfg = MACDConf 12 24 50
  
 {-

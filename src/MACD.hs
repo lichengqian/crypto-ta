@@ -6,6 +6,7 @@ import qualified Data.Vector.Storable as V
 import Data.TALib
 import GHC.Exts (fromList)
 import Test.QuickCheck
+import Types
 
 instance (V.Storable a, Arbitrary a) => Arbitrary (V.Vector a) where
   arbitrary = fromList <$> arbitrary
@@ -16,9 +17,6 @@ data TAException = TAException Text Int
 instance Exception TAException where
 
 taException msg = throwM . TAException msg
-
-type Price = [Double]
-type Value = V.Vector CDouble
 
 toPriceList vs = [p | CDouble p <- V.toList vs]
 
@@ -31,36 +29,41 @@ data MACDConf = MACDConf
 
 -- | MACD 指标
 data MACD = MACD
-  { macd :: Price
-  , macdSignal :: Price
-  , macdHist :: Price
+  { macd :: History Double
+  , macdSignal :: History Double
+  , macdHist :: History Double
   } deriving (Eq, Show)
 
-computeMACD :: (MonadThrow m, MonadIO m) => MACDConf -> Price -> m MACD
+inReal :: History Double -> V.Vector CDouble
+inReal = fromList . fmap (CDouble . snd) . fromHistory
+
+computeMACD :: (MonadThrow m, MonadIO m) => MACDConf -> History Double -> m MACD
 computeMACD MACDConf{..} prices = do
-    let inReal = fromList $ map CDouble prices
-    retE <- liftIO $ ta_macd inReal fastPeriod slowPeriod signalPeriod
+    retE <- liftIO $ ta_macd (inReal prices) fastPeriod slowPeriod signalPeriod
     case retE of
       Left err -> taException "MACD" err
       Right (_, _, macd, macdSignal, macdHist) ->
-        pure $ MACD (toPriceList macd) (toPriceList macdSignal) (toPriceList macdHist)
-
+        pure $ MACD (toHis macd) (toHis macdSignal) (toHis macdHist)
+  where
+    ts = times prices
+    toHis = mkHistory ts . toPriceList
 
 -- | rsi 指标
 newtype TimePeriod = TimePeriod Int
   deriving (Eq, Show, Num)
 
-computeRSI :: (MonadThrow m, MonadIO m) => TimePeriod -> Price -> m Price
+computeRSI :: (MonadThrow m, MonadIO m) => TimePeriod -> History Double -> m (History Double)
 computeRSI (TimePeriod t) prices = do
-    let inReal = fromList $ fmap CDouble prices
-    retE <- liftIO $ ta_rsi inReal t
+    retE <- liftIO $ ta_rsi (inReal prices) t
     case retE of
       Left err -> taException "RSI" err
-      Right (_, _, vs) -> return $ toPriceList vs
-
-
+      Right (_, _, vs) -> return $ mkHistory times $ toPriceList vs
+  where
+    times = fmap fst $ fromHistory prices
+{-
 _test1 a b c = do
   generate arbitrary >>= computeMACD (MACDConf a b c) 
 
 _test2 a = do
   generate arbitrary >>= computeRSI (TimePeriod a) 
+-}
