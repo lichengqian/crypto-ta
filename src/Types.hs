@@ -15,14 +15,13 @@ data Timed a = Timed !LocalTime !a deriving (Show, Eq, Functor)
 fromTimed :: Timed a -> a
 fromTimed (Timed _ a) = a
 
-
-newtype History a = History [Timed a] deriving (Eq, Show, Monoid)
+newtype History a = History [Timed a] deriving (Eq, Show, Semigroup, Monoid)
 
 instance Functor History where
   fmap f (History xs) = History $ fmap (fmap f) xs
 
 mkHistory :: [LocalTime] -> [a] -> History a
-mkHistory times xs = History $ zipWith Timed times xs
+mkHistory ts xs = History $ zipWith Timed ts xs
 
 fromHistory :: History a -> [(LocalTime, a)]
 fromHistory (History xs) = fmap (\(Timed t v) -> (t, v)) xs

@@ -8,19 +8,11 @@ module Lib
     ) where
 
 
--- import           Data.Aeson
--- import           Data.Aeson.TH
-import Diagrams.Backend.CmdLine hiding (width, height)
 import           Diagrams.Backend.Canvas
-import           Diagrams.Backend.Canvas.CmdLine
-import           Diagrams.Prelude hiding (width, height)
-import           Network.Wai
-import           Network.Wai.Handler.Warp
-import           Servant
+import           Diagrams.Prelude hiding (width, height, Renderable)
 import           Universum
 import Graphics.Rendering.Chart.Easy
 import Graphics.Rendering.Chart.Backend.Diagrams
-import Data.Time.LocalTime
 
 import Types
 import Exchange.Binance
@@ -29,8 +21,9 @@ import Graphics.Blank (blankCanvas, send, clearRect, width, height)
 import Control.Concurrent (threadDelay, forkIO)
 
 -- | 参考 https://github.com/timbod7/haskell-chart/wiki/example-9
+--  TODO: 价格绘制柱状图
 -- | 工作线程，定时拉取price数据并生成chart
-priceChartWorker :: Symbol -> Int -> IO (MVar _)
+priceChartWorker :: Symbol -> Int -> IO (MVar (Renderable ()))
 priceChartWorker sym maxSize = do
   env <- binanceEnv
   mvarChart <- newEmptyMVar
@@ -49,21 +42,14 @@ priceChartWorker sym maxSize = do
           threadDelay (2 * 1000)
           loop p mbLastIndex'
 
-  forkIO $ loop mempty Nothing
+  _ <- forkIO $ loop mempty Nothing
   return mvarChart
 
   where
     newPrice old new = limitHistory maxSize $ mappend old new
     macdCfg = MACDConf 12 24 50
- 
-{-
-main = mainWith $ \sym -> do
-  env <- defaultEnv vectorAlignmentFns 700 400
-  chart <- priceChart $ fromString sym
-  let (diagram :: Diagram B, _) = runBackendR env chart
-  return diagram
--}
 
+main :: IO ()
 main = do
   let sym = "ETHBTC"
   mvarChart <- priceChartWorker sym 5000

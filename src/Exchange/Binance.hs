@@ -7,7 +7,6 @@ module Exchange.Binance where
 import           Data.Aeson
 import           Data.List.NonEmpty (fromList)
 import           Data.Proxy
-import           Data.Time
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
 import           Network.HTTP.Client.TLS
 import           Servant.API
@@ -16,8 +15,6 @@ import           Universum
 import Text.Read (read)
 
 import MACD
-import qualified Data.Text               as T
-
 import Types
 
 type BinanceAPI =
@@ -60,12 +57,13 @@ smartClientEnv url' = do
     Https -> newTlsManager
   return $ ClientEnv manager url
 
-evalClientM :: (MonadIO m, MonadThrow m) => ClientEnv -> ClientM a -> m a
+evalClientM :: MonadIO m => ClientEnv -> ClientM a -> m a
 evalClientM env action = liftIO $ do
   runClientM action env >>= \case
       Left err -> throwM err
       Right r  -> return r
 
+binanceEnv :: IO ClientEnv
 binanceEnv = smartClientEnv "https://api.binance.com/api/v1"
 
 getPrices :: Symbol -> Limit -> Maybe FromID -> ClientM (Maybe FromID, History Double)
