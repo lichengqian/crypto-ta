@@ -1,5 +1,7 @@
 module Types where
 
+import           Data.List (groupBy)
+import           Data.List.NonEmpty (fromList)
 import           Data.Time
 import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import           Universum
@@ -10,6 +12,9 @@ int2LocalTime n = utcToLocalTime <$> getTimeZone utcTime <*> pure utcTime
   where
     utcTime = posixSecondsToUTCTime . fromIntegral $ div n 1000
 
+minute :: LocalTime -> LocalTime
+minute (LocalTime d (TimeOfDay h m _)) = LocalTime d (TimeOfDay h m 0)
+  
 data Timed a = Timed !LocalTime !a deriving (Show, Eq, Functor)
 
 fromTimed :: Timed a -> a
@@ -29,6 +34,7 @@ fromHistory (History xs) = fmap (\(Timed t v) -> (t, v)) xs
 times :: History a -> [LocalTime]
 times (History xs) = fmap (\(Timed t _) -> t) xs
 
+limitHistory :: Int -> History a -> History a
 limitHistory maxSize (History xs)
   | length xs < maxSize = History xs
   | otherwise = History (drop (maxSize - length xs) xs)
@@ -44,3 +50,16 @@ sampleHistory (History xs) = History $ foldr go [] xs
       | t == t2 = e2:xs
       | otherwise = e:e2:xs
 
+-- | 生成柱状图
+toCandle :: Ord a => History a -> History (a, a, a, a)
+toCandle his = History $ fmap oneCandle gcs
+  where
+    xs = fmap (first minute) $ fromHistory his
+    gcs = groupBy ((==) `on` fst) xs
+    oneCandle xxs = Timed t (lo, op, cl, hi)
+      where
+        t = fst . head . fromList $ xxs
+        lo = minimum $ fmap snd xxs
+        hi = maximum $ fmap snd xxs
+        op = snd . head . fromList $ xxs
+        cl = snd . last . fromList $ xxs
