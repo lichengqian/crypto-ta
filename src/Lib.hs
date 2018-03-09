@@ -11,7 +11,7 @@ module Lib
 import           Diagrams.Backend.Canvas
 import           Diagrams.Prelude hiding (width, height, Renderable)
 import           Universum hiding ((.~))
-import Graphics.Rendering.Chart.Easy
+import           Graphics.Rendering.Chart.Easy
 import Graphics.Rendering.Chart.Backend.Diagrams
 
 import Types
@@ -21,7 +21,7 @@ import Graphics.Blank (blankCanvas, send, clearRect, width, height)
 import Control.Concurrent (threadDelay, forkIO)
 
 -- | 参考 https://github.com/timbod7/haskell-chart/wiki/example-9
---  TODO: 价格绘制柱状图
+-- 价格绘制柱状图
 lineStyle n colour = line_width .~ n
                    $ line_color .~ opaque colour
                    $ def
