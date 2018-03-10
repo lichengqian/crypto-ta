@@ -6,6 +6,7 @@ module Exchange.Binance where
 
 import           Data.Aeson
 import           Data.List.NonEmpty (fromList)
+import qualified Data.Sequence as Seq
 import           Data.Proxy
 import           Network.HTTP.Client     (defaultManagerSettings, newManager)
 import           Network.HTTP.Client.TLS
@@ -70,9 +71,9 @@ getPrices :: Symbol -> Limit -> Maybe FromID -> ClientM (Maybe FromID, History D
 getPrices sym limit mbFromId = do
   trades <- getTrades (Just sym) (Just limit) mbFromId
   prices <- liftIO $ traverse f trades
-  return (Just . tid . last . fromList $ trades, History prices)
+  return (Just . tid . last . fromList $ trades, Seq.fromList prices)
   where
-    f Trade{..} = Timed <$> int2LocalTime time <*> pure (read $ toString price)
+    f Trade{..} = (,) <$> int2LocalTime time <*> pure (read $ toString price)
   -- putTextLn $ show trades
 
 testPrices = getPrices "ETHBTC" 100 Nothing

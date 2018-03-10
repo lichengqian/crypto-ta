@@ -8,10 +8,11 @@ module Lib
     ) where
 
 
+import           Data.Time
 import           Diagrams.Backend.Canvas
-import           Diagrams.Prelude hiding (width, height, Renderable)
+import           Diagrams.Prelude hiding (width, height, op, Renderable)
 import           Universum hiding ((.~))
-import           Graphics.Rendering.Chart.Easy
+import           Graphics.Rendering.Chart.Easy hiding (label, op)
 import Graphics.Rendering.Chart.Backend.Diagrams
 
 import Types
@@ -22,10 +23,12 @@ import Control.Concurrent (threadDelay, forkIO)
 
 -- | 参考 https://github.com/timbod7/haskell-chart/wiki/example-9
 -- 价格绘制柱状图
+lineStyle :: Double -> Colour Double -> LineStyle
 lineStyle n colour = line_width .~ n
                    $ line_color .~ opaque colour
                    $ def
 
+candle :: String -> Colour Double -> [(LocalTime, (Double, Double, Double, Double))] -> _
 candle label color vals = liftEC $ do
   plot_candle_line_style  .= lineStyle 1 color
   plot_candle_fill .= True
@@ -61,7 +64,7 @@ priceChartWorker sym maxSize = do
   return mvarChart
 
   where
-    newPrice old new = limitHistory maxSize $ mappend old new
+    newPrice old new = limitLength maxSize $ old <> new
     macdCfg = MACDConf 12 24 50
 
 main :: IO ()

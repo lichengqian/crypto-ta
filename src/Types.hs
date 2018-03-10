@@ -2,6 +2,8 @@ module Types where
 
 import           Data.List (groupBy)
 import           Data.List.NonEmpty (fromList)
+import           Data.Sequence (Seq(..), (<|), (|>))
+import qualified Data.Sequence as Seq
 import           Data.Time
 import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import           Universum
@@ -14,31 +16,24 @@ int2LocalTime n = utcToLocalTime <$> getTimeZone utcTime <*> pure utcTime
 
 minute :: LocalTime -> LocalTime
 minute (LocalTime d (TimeOfDay h m _)) = LocalTime d (TimeOfDay h m 0)
-  
-data Timed a = Timed !LocalTime !a deriving (Show, Eq, Functor)
 
-fromTimed :: Timed a -> a
-fromTimed (Timed _ a) = a
-
-newtype History a = History [Timed a] deriving (Eq, Show, Semigroup, Monoid)
-
-instance Functor History where
-  fmap f (History xs) = History $ fmap (fmap f) xs
+type History a = Seq (LocalTime, a)
 
 mkHistory :: [LocalTime] -> [a] -> History a
-mkHistory ts xs = History $ zipWith Timed ts xs
+mkHistory ts xs = Seq.fromList $ zip ts xs
 
 fromHistory :: History a -> [(LocalTime, a)]
-fromHistory (History xs) = fmap (\(Timed t v) -> (t, v)) xs
+fromHistory = toList
 
 times :: History a -> [LocalTime]
-times (History xs) = fmap (\(Timed t _) -> t) xs
+times = fmap fst . toList
 
-limitHistory :: Int -> History a -> History a
-limitHistory maxSize (History xs)
-  | length xs < maxSize = History xs
-  | otherwise = History (drop (maxSize - length xs) xs)
+limitLength :: Int -> Seq a -> Seq a
+limitLength maxSize hs
+  | Seq.length hs < maxSize = hs
+  | otherwise = Seq.drop (maxSize - Seq.length hs) hs
 
+{--
 -- | 去掉重复的时间
 sampleHistory :: History a -> History a
 sampleHistory (History xs) = History $ foldr go [] xs
@@ -49,14 +44,15 @@ sampleHistory (History xs) = History $ foldr go [] xs
     go e@(Timed t _) (e2@(Timed t2 _):xs)
       | t == t2 = e2:xs
       | otherwise = e:e2:xs
+--}
 
 -- | 生成柱状图
 toCandle :: Ord a => History a -> History (a, a, a, a)
-toCandle his = History $ fmap oneCandle gcs
+toCandle his = Seq.fromList $ fmap oneCandle gcs
   where
     xs = fmap (first minute) $ fromHistory his
     gcs = groupBy ((==) `on` fst) xs
-    oneCandle xxs = Timed t (lo, op, cl, hi)
+    oneCandle xxs = (t, (lo, op, cl, hi))
       where
         t = fst . head . fromList $ xxs
         lo = minimum $ fmap snd xxs
