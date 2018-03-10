@@ -42,7 +42,8 @@ candle label color vals = liftEC $ do
 mkChart :: Symbol -> History Double -> IO (Renderable ())
 mkChart sym p = do
   let cs =  toCandle p
-  MACD{..} <- computeMACD macdCfg p
+      p' =  fmap (second (\(_, v, _, _) -> v)) cs
+  MACD{..} <- computeMACD macdCfg p'
   return $ toRenderable $ do
     layoutlr_title .= toString sym
     layoutlr_left_axis . laxis_override .= axisGridHide
