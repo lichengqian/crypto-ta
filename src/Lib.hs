@@ -39,33 +39,43 @@ candle label color vals = liftEC $ do
   plot_candle_values .= [ Candle d lo op 0 cl hi | (d,(lo,op,cl,hi)) <- vals]
   plot_candle_title .= label
 
+-- | 构造chart
+mkChart :: Symbol -> History Double -> IO (Renderable ())
+mkChart sym p = do
+  let cs =  toCandle p
+  MACD{..} <- computeMACD macdCfg p
+  return $ toRenderable $ do
+    layoutlr_title .= toString sym
+    layoutlr_left_axis . laxis_override .= axisGridHide
+    layoutlr_right_axis . laxis_override .= axisGridHide
+    plotLeft (line "macd 1" [fromHistory macd])
+    plotLeft (line "macd 2" [fromHistory macdSignal])
+    plotRight (candle "price" red $ fromHistory cs)
+
+  where
+    macdCfg = MACDConf 12 24 50
+
 -- | 工作线程，定时拉取price数据并生成chart
 priceChartWorker :: Symbol -> Int -> IO (MVar (Renderable ()))
 priceChartWorker sym maxSize = do
   env <- binanceEnv
   mvarChart <- newEmptyMVar
   let loop prices mbLastIndex = do
-          (mbLastIndex', prices') <- evalClientM env $ getPrices sym 500 mbLastIndex
-          let p = newPrice prices prices'
-              cs = toCandle p
-          MACD{..} <- computeMACD macdCfg p
-          putMVar mvarChart $ toRenderable $ do
-            layoutlr_title .= toString sym
-            layoutlr_left_axis . laxis_override .= axisGridHide
-            layoutlr_right_axis . laxis_override .= axisGridHide
-            plotLeft (line "macd 1" [fromHistory macd])
-            plotLeft (line "macd 2" [fromHistory macdSignal])
-            plotRight (candle "price" red $ fromHistory cs)
-
-          threadDelay (2 * 1000)
-          loop p mbLastIndex'
+          mret <- tryAny $ evalClientM env $ getPrices sym 500 mbLastIndex
+          case mret of
+            Left err -> print err >> loop prices mbLastIndex
+            Right (mbLastIndex', prices') -> do
+              let p = newPrice prices prices'
+              chart <- mkChart sym p
+              putMVar mvarChart chart
+              threadDelay (2 * 1000)
+              loop p mbLastIndex'
 
   _ <- forkIO $ loop mempty Nothing
   return mvarChart
 
   where
     newPrice old new = limitLength maxSize $ old <> new
-    macdCfg = MACDConf 12 24 50
 
 main :: IO ()
 main = do
