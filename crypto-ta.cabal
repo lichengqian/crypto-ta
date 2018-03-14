@@ -74,6 +74,7 @@ test-suite crypto-ta-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
+                     , time
                      , crypto-ta
                      , hspec
                      , hspec-wai
