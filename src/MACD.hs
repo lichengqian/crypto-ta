@@ -45,7 +45,7 @@ computeMACD MACDConf{..} prices = do
       Right (_, _, macd, macdSignal, macdHist) ->
         pure $ MACD (toHis macd) (toHis macdSignal) (toHis macdHist)
   where
-    ts = times prices
+    ts = drop (length prices - slowPeriod - signalPeriod + 2) $ times prices
     toHis = mkHistory ts . toPriceList
 
 -- | rsi 指标

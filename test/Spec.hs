@@ -1,5 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Main (main) where
 
 import MACD
@@ -15,11 +17,23 @@ spec :: Spec
 spec = do
     describe "calc macd" $ do
         it "it should be right" $ do
-             x <- computeMACD macdCfg historyData
-             let macdPrices = drop 25 $ prices $ macd x
-             length macdPrices `shouldBe` 41
-             head macdPrices `shouldBe` 8.275269504
-             last macdPrices `shouldBe` 2.762561216
+             -- print historyClosePrice
+             -- print $ length historyClosePrice
+             -- print $ length historyDate
+             MACD{..} <- computeMACD macdCfg historyData
+             let macdPrices = prices macd
+                 macdSignals = prices macdSignal
+             -- print macdPrices
+             -- print macdSignals
+             let output = zipWith (-) macdPrices macdSignals
+                 output1 = dropWhile (< 0) output
+                 output2 = takeWhile (> 0) output1
+             print output
+             -- print output1
+             -- print output2
+
+             length output1 `shouldBe` 18
+             length output2 `shouldBe` 13
              where
                 macdCfg = MACDConf 12 26 9
                 parseStrToLocalTime x = parseTimeM True defaultTimeLocale "%Y-%-m-%-d" x :: Maybe  LocalTime
