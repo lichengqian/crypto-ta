@@ -42,7 +42,7 @@ candle label color vals = liftEC $ do
 mkChart :: Symbol -> History Double -> IO (Renderable ())
 mkChart sym p = do
   let cs =  toCandle p
-      p' =  fmap (second (\(_, v, _, _) -> v)) cs
+      p' =  fmap (second (\(_, _, v, _) -> v)) cs
   MACD{..} <- computeMACD macdCfg p'
   return $ toRenderable $ do
     layoutlr_title .= toString sym
@@ -53,7 +53,7 @@ mkChart sym p = do
     plotRight (candle "price" red $ fromHistory cs)
 
   where
-    macdCfg = MACDConf 12 24 50
+    macdCfg = MACDConf 5 20 5
 
 -- | 工作线程，定时拉取price数据并生成chart
 priceChartWorker :: Symbol -> Int -> IO (MVar (Renderable ()))

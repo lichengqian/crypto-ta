@@ -28,6 +28,9 @@ fromHistory = toList
 times :: History a -> [LocalTime]
 times = fmap fst . toList
 
+prices :: History a -> [a]
+prices = fmap snd . toList
+
 limitLength :: Int -> Seq a -> Seq a
 limitLength maxSize hs
   | Seq.length hs < maxSize = hs
