@@ -59,7 +59,7 @@ computeRSI (TimePeriod t) prices = do
       Left err -> taException "RSI" err
       Right (_, _, vs) -> return $ mkHistory times $ toPriceList vs
   where
-    times = fmap fst $ fromHistory prices
+    times = drop t $ fmap fst $ fromHistory prices
 {-
 _test1 a b c = do
   generate arbitrary >>= computeMACD (MACDConf a b c) 
