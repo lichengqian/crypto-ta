@@ -28,8 +28,8 @@ fromHistory = toList
 times :: History a -> [LocalTime]
 times = fmap fst . toList
 
-prices :: History a -> [a]
-prices = fmap snd . toList
+values :: History a -> [a]
+values = fmap snd . toList
 
 limitLength :: Int -> Seq a -> Seq a
 limitLength maxSize hs
@@ -62,3 +62,9 @@ toCandle his = Seq.fromList $ fmap oneCandle gcs
         hi = maximum $ fmap snd xxs
         op = snd . head . fromList $ xxs
         cl = snd . last . fromList $ xxs
+
+-- | 指标计算 type class
+class Computable a where
+  type Input a :: *
+  type Result a :: *
+  compute :: (MonadThrow m, MonadIO m) => a -> Input a -> m (Result a)

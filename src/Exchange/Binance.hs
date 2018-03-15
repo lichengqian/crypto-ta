@@ -15,7 +15,6 @@ import           Servant.Client
 import           Universum
 import Text.Read (read)
 
-import MACD
 import Types
 
 type BinanceAPI =
@@ -76,5 +75,3 @@ getPrices sym limit mbFromId = do
     f Trade{..} = (,) <$> int2LocalTime time <*> pure (read $ toString price)
   -- putTextLn $ show trades
 
-testPrices = getPrices "ETHBTC" 100 Nothing
-  >>= computeRSI 10 . snd >>= print

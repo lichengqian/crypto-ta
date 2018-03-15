@@ -43,17 +43,17 @@ mkChart :: Symbol -> History Double -> IO (Renderable ())
 mkChart sym p = do
   let cs =  toCandle p
       p' =  fmap (second (\(_, _, v, _) -> v)) cs
-  MACD{..} <- computeMACD macdCfg p'
+  macd <- compute macdCfg p'
   return $ toRenderable $ do
     layoutlr_title .= toString sym
     layoutlr_left_axis . laxis_override .= axisGridHide
     layoutlr_right_axis . laxis_override .= axisGridHide
-    plotLeft (line "macd 1" [fromHistory macd])
-    plotLeft (line "macd 2" [fromHistory macdSignal])
+    plotLeft (line "macd 1" [[(t, f) | (t, (f, _)) <- fromHistory macd]])
+    plotLeft (line "macd 2" [[(t, s) | (t, (_, s)) <- fromHistory macd]])
     plotRight (candle "price" red $ fromHistory cs)
 
   where
-    macdCfg = MACDConf 5 20 5
+    macdCfg = MACD 5 20 5
 
 -- | 工作线程，定时拉取price数据并生成chart
 priceChartWorker :: Symbol -> Int -> IO (MVar (Renderable ()))

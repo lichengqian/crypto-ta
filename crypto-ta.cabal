@@ -58,6 +58,7 @@ library
                        RecordWildCards
                        ScopedTypeVariables
                        TupleSections
+                       TypeFamilies
 
 executable crypto-ta-exe
   hs-source-dirs:      app
